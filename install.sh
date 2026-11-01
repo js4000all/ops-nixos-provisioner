@@ -11,7 +11,12 @@ log() { printf '[m1] %s\n' "$*"; }
 die() { printf '[m1] ERROR: %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Run as root (sudo bash install.sh)."
-[[ -d /sys/firmware/efi ]] || die "UEFI boot is required."
+if [[ -d /sys/firmware/efi ]]; then
+  boot_mode=uefi
+else
+  boot_mode=bios
+fi
+log "Detected boot mode: $boot_mode"
 for cmd in git lsblk sgdisk partprobe udevadm mkfs.vfat mkfs.ext4 mount mountpoint nixos-generate-config nixos-install; do
   command -v "$cmd" >/dev/null || die "Required command missing: $cmd"
 done
@@ -64,18 +69,27 @@ done < <(findmnt -rn -o SOURCE)
 
 log "ERASING ALL DATA on $disk"
 sgdisk --zap-all "$disk"
-sgdisk -n 1:1MiB:+1GiB -t 1:ef00 -c 1:EFI "$disk"
+if [[ "$boot_mode" == uefi ]]; then
+  sgdisk -n 1:1MiB:+1GiB -t 1:ef00 -c 1:EFI "$disk"
+else
+  sgdisk -n 1:1MiB:+2MiB -t 1:ef02 -c 1:BIOS-BOOT "$disk"
+fi
 sgdisk -n 2:0:0 -t 2:8300 -c 2:nixos "$disk"
 partprobe "$disk"
 udevadm settle
-esp="$(lsblk -nr -o PATH,PARTN "$disk" | awk '$2 == 1 {print $1}')"
+boot_partition="$(lsblk -nr -o PATH,PARTN "$disk" | awk '$2 == 1 {print $1}')"
 root="$(lsblk -nr -o PATH,PARTN "$disk" | awk '$2 == 2 {print $1}')"
-[[ -b "$esp" && -b "$root" ]] || die "Partition device discovery failed."
-mkfs.vfat -F 32 -n boot "$esp"
+[[ -b "$boot_partition" && -b "$root" ]] || die "Partition device discovery failed."
+if [[ "$boot_mode" == uefi ]]; then
+  mkfs.vfat -F 32 -n boot "$boot_partition"
+fi
 mkfs.ext4 -F -L nixos "$root"
 mount "$root" /mnt
-mkdir -p /mnt/boot /mnt/etc/nixos
-mount -o umask=077 "$esp" /mnt/boot
+mkdir -p /mnt/etc/nixos
+if [[ "$boot_mode" == uefi ]]; then
+  mkdir -p /mnt/boot
+  mount -o umask=077 "$boot_partition" /mnt/boot
+fi
 
 cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
 nixos-generate-config --root /mnt
@@ -84,6 +98,22 @@ cat > /mnt/etc/nixos/network-local.nix <<EOF
   networking.interfaces."${nic}".useDHCP = true;
 }
 EOF
+
+if [[ "$boot_mode" == uefi ]]; then
+  cat > /mnt/etc/nixos/boot-local.nix <<'EOF'
+{ ... }: {
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+}
+EOF
+else
+  cat > /mnt/etc/nixos/boot-local.nix <<EOF
+{ ... }: {
+  boot.loader.grub.enable = true;
+  boot.loader.grub.device = "$disk";
+}
+EOF
+fi
 
 log "Installing NixOS..."
 nixos-install --no-root-passwd
