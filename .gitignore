@@ -1,0 +1,7 @@
+# Machine-specific NixOS configuration
+hardware-configuration.nix
+network-local.nix
+
+# Editor temporary files
+*.swp
+*~
