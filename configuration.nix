@@ -17,6 +17,13 @@
     publish.addresses = true;
   };
 
+  # Keep laptop-based servers running when the lid is closed.
+  services.logind.settings.Login = {
+    HandleLidSwitch = "ignore";
+    HandleLidSwitchExternalPower = "ignore";
+    HandleLidSwitchDocked = "ignore";
+  };
+
   services.openssh = {
     enable = true;
     settings = {
