@@ -84,7 +84,7 @@ if [[ "$boot_mode" == uefi ]]; then
   mkfs.vfat -F 32 -n boot "$boot_partition"
 fi
 mkfs.ext4 -F -L nixos "$root"
-mount "$root" /mnt
+mount -t ext4 "$root" /mnt
 mkdir -p /mnt/etc/nixos
 if [[ "$boot_mode" == uefi ]]; then
   mkdir -p /mnt/boot
