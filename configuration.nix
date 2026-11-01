@@ -44,6 +44,9 @@
   };
   security.sudo.wheelNeedsPassword = false;
 
+  # Allow dynamically linked binaries such as VS Code Server to run on NixOS.
+  programs.nix-ld.enable = true;
+
   environment.systemPackages = with pkgs; [ git curl vim ];
   networking.firewall.allowedTCPPorts = [ 22 ];
 
