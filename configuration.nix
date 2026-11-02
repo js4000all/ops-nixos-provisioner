@@ -28,8 +28,8 @@ in
   systemd.services.enable-wol = lib.mkIf (builtins.length dhcpInterfaces == 1) {
     description = "Enable magic-packet Wake-on-LAN on the wired NIC";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network-pre.target" ];
-    before = [ "network.target" ];
+    requires = [ "sys-subsystem-net-devices-${builtins.head dhcpInterfaces}.device" ];
+    after = [ "sys-subsystem-net-devices-${builtins.head dhcpInterfaces}.device" ];
     serviceConfig = {
       Type = "oneshot";
       ExecStart = "${pkgs.ethtool}/bin/ethtool -s ${builtins.head dhcpInterfaces} wol g";
