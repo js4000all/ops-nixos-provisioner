@@ -1,4 +1,10 @@
-{ pkgs, ... }:
+{ config, lib, pkgs, ... }:
+let
+  # The bootstrap-generated network-local.nix enables DHCP on the wired NIC.
+  dhcpInterfaces = lib.attrNames (
+    lib.filterAttrs (_: interface: interface.useDHCP) config.networking.interfaces
+  );
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -9,6 +15,26 @@
   networking.hostName = "c0";
   networking.useDHCP = false;
   networking.wireless.enable = false;
+
+  # Apply the common WoL policy to the machine's bootstrap-selected wired NIC.
+  # Derive its name from network-local.nix without hard-coding it here.
+  assertions = [
+    {
+      assertion = builtins.length dhcpInterfaces == 1;
+      message = "Expected exactly one DHCP-enabled interface for Wake-on-LAN.";
+    }
+  ];
+
+  systemd.services.enable-wol = lib.mkIf (builtins.length dhcpInterfaces == 1) {
+    description = "Enable magic-packet Wake-on-LAN on the wired NIC";
+    wantedBy = [ "multi-user.target" ];
+    requires = [ "sys-subsystem-net-devices-${builtins.head dhcpInterfaces}.device" ];
+    after = [ "sys-subsystem-net-devices-${builtins.head dhcpInterfaces}.device" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.ethtool}/bin/ethtool -s ${builtins.head dhcpInterfaces} wol g";
+    };
+  };
 
   services.avahi = {
     enable = true;
