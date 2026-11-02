@@ -11,6 +11,10 @@ curl -fL https://raw.githubusercontent.com/js4000all/ops-nixos-provisioner/main/
 sudo bash /tmp/install.sh
 ```
 
+```sh
+curl -fL https://x.gd/S7bSj -o /tmp/install.sh
+```
+
 PRをmainにマージした後に上記を実行してください。
 
 前提: インストール先は64GiB超の非USB・非リムーバブルディスクが1台、有線の物理NICが1台です。対象ディスク全領域をGPTで使用します。UEFIならESP 1GiB + ext4 rootとsystemd-boot、Legacy BIOSならBIOS boot 2MiB + ext4 rootとGRUBを使用します。
