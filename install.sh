@@ -95,22 +95,21 @@ cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
 nixos-generate-config --root /mnt
 cat > /mnt/etc/nixos/network-local.nix <<EOF
 { ... }: {
-  networking.interfaces."${nic}".useDHCP = true;
+  myHost.primaryEthernet = "${nic}";
 }
 EOF
 
 if [[ "$boot_mode" == uefi ]]; then
   cat > /mnt/etc/nixos/boot-local.nix <<'EOF'
 { ... }: {
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+  myHost.bootMode = "uefi";
 }
 EOF
 else
   cat > /mnt/etc/nixos/boot-local.nix <<EOF
 { ... }: {
-  boot.loader.grub.enable = true;
-  boot.loader.grub.device = "$disk";
+  myHost.bootMode = "bios";
+  myHost.bootDisk = "$disk";
 }
 EOF
 fi
