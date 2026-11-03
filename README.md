@@ -46,6 +46,24 @@ Git管理外の実機設定も評価できるよう、`path:/etc/nixos#c0` を�
 
 インストール時のcloneは `--no-single-branch` を指定するため、後からGitのブランチを切り替えられます。
 
+## Ubuntu Server ISOの取得
+
+PXE構築の準備として、Ubuntu Server 26.04.1 LTS (amd64) のISOを管理PC `c0` に保存できます。取得サービスは手動起動専用で、OS起動時・`nixos-rebuild switch` 時・定期タイマーでは実行されません。
+
+設定反映後に以下を実行します。
+
+```sh
+sudo systemctl start ubuntu-iso-fetch.service
+systemctl status ubuntu-iso-fetch.service
+journalctl -u ubuntu-iso-fetch.service
+```
+
+ISOの保存先は `/var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso` です。URLとSHA256は `ubuntu-iso.nix` で固定し、[Ubuntu公式SHA256SUMS](https://releases.ubuntu.com/26.04.1/SHA256SUMS) と照合しています。
+
+サービスを再実行すると、保存済みISOのSHA256を確認します。一致すればダウンロードを省略し、不一致または未取得の場合は再ダウンロードします。取得ファイルは検証成功後に配置します。ISOはNix StoreとGitの管理対象外です。
+
+この段階ではISOを保存するだけで、PXE・HTTP配信・Autoinstallはまだ設定していません。
+
 ## 依存バージョンの管理
 
 `flake.nix` は `nixpkgs` と `disko` を定義し、`flake.lock` が使用リビジョンを固定します。依存関係を意図せず更新しないよう、ロックファイルもGit管理します。
@@ -63,4 +81,5 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 - `configuration.nix`: SSH、mDNS、WoL、ブートローダーなどのOS設定
 - `disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
 - `install.sh`: 初期構築の実行制御と実機固有情報の生成
+- `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
 - `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成するGit管理外の実機設定
