@@ -2,8 +2,7 @@
 set -Eeuo pipefail
 
 REPO_URL="https://github.com/js4000all/ops-nixos-provisioner.git"
-# Use the feature branch until it has passed real-machine verification.
-REPO_REF="feat/flake-disko-bootstrap"
+REPO_REF="main"
 MIN_DISK_BYTES=$((64 * 1024 * 1024 * 1024))
 WORKDIR="$(mktemp -d)"
 trap 'echo "Installation failed at line $LINENO" >&2' ERR
@@ -25,8 +24,8 @@ done
 [[ ! -e /mnt/etc/nixos/configuration.nix ]] || die "/mnt appears to contain an existing installation."
 mountpoint -q /mnt && die "/mnt is already mounted."
 
-log "Fetching the selected repository branch before changing disks..."
-git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$WORKDIR/repo" || die "Unable to fetch repository."
+log "Fetching repository branch $REPO_REF before changing disks..."
+git clone --depth 1 --no-single-branch --branch "$REPO_REF" "$REPO_URL" "$WORKDIR/repo" || die "Unable to fetch repository."
 for file in configuration.nix disk-config.nix flake.nix flake.lock; do
   [[ -f "$WORKDIR/repo/$file" ]] || die "Missing $file in $REPO_REF."
 done
@@ -106,6 +105,6 @@ nixos-generate-config --root /mnt --no-filesystems --show-hardware-config \
 mkdir -p /mnt/etc/nixos
 cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
 
-log "Installing NixOS from the locked feature branch..."
+log "Installing NixOS from locked Flake configuration..."
 nixos-install --flake "path:/mnt/etc/nixos#c0" --no-root-passwd
 log "Installation finished. Remove USB media and reboot manually."
