@@ -1,29 +1,35 @@
 # ops-nixos-provisioner
 
-NixOSベースの管理PC構築用設定です。
+NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成はFlakesで、ディスク構成はdiskoで管理します。
 
-## M1: Flakes + disko 実機検証用ブランチ
+## 初期構築
 
-NixOS Minimal ISO（UEFIまたはLegacy BIOS）から起動し、有線DHCPでネットワークへ接続します。**インストール先ディスクの全内容が消去されます。**
+対象PCでNixOS Minimal ISOを起動し、有線LAN（DHCP）でネットワークに接続します。インストールには別の管理PCやNixツールを用意する必要はありません。
 
-このPRの実機検証中は **mainのinstall.shを使わず**、作業ブランチのスクリプトを取得してください。
+**注意: インストール先ディスクのパーティションとデータはすべて消去されます。**
 
 ```sh
-curl -fL https://raw.githubusercontent.com/js4000all/ops-nixos-provisioner/feat/flake-disko-bootstrap/install.sh -o /tmp/install.sh
+curl -fL https://raw.githubusercontent.com/js4000all/ops-nixos-provisioner/main/install.sh -o /tmp/install.sh
 sudo bash /tmp/install.sh
 ```
 
-開始前にGitHub Actionsの `Update flake.lock` を **feat/flake-disko-bootstrap** ブランチに対して手動実行し、`flake.lock` が同ブランチへコミットされたことを確認してください。lockファイルがなければインストール処理はディスク消去前に停止します。
+`install.sh` は `main` のリポジトリを取得し、ロック済みの依存関係を利用してインストールします。事前に `flake.lock` がGitへコミットされている必要があります。
 
-前提条件は従来と同じです。インストール先は64GiB超の非USB・非リムーバブルディスクが1台、有線の物理NICが1台です。全容量をGPTとして使用し、UEFIではESP 1GiB + ext4 rootとsystemd-boot、Legacy BIOSではBIOS boot 2MiB + ext4 rootとGRUBを使います。
+### 前提条件・処理内容
 
-- `flake.nix` がNixOS構成とdiskoのロックされた依存を定義します。
-- `disk-config.nix` がパーティション、フォーマット、マウントおよびNixOSの `fileSystems` を宣言します。
-- `install.sh` はディスクとNICの安全確認、実機設定の生成、disko実行、`nixos-install` に集中します。
-- `hardware-configuration.nix` は `nixos-generate-config --no-filesystems` で実機生成します。
-- `network-local.nix` と `boot-local.nix` はGit管理外です。ローカル生成ファイルをFlake評価へ含めるため、`path:` を明示します。
+- 64GiB超の非USB・非リムーバブルなインストール対象ディスクが**ちょうど1台**
+- 物理有線NICが**ちょうど1つ**
+- 対象ディスク全体をGPTで初期化（暗号化・swapなし）
+- UEFI: ESP 1GiB + ext4 root、systemd-boot
+- Legacy BIOS: BIOS boot 2MiB + ext4 root、GRUB
 
-起動後は `ssh user1@c0.local` で接続できます。通常の再構築には次のコマンドを使います。
+スクリプトはディスク・NIC・起動方式を自動検出し、インストーラーが使用中のディスクと推定される場合には初期化を拒否します。diskoがパーティション作成・フォーマット・マウントを行い、その後 `nixos-install` でOSを導入します。パーティション作成は破壊的操作です。
+
+`hardware-configuration.nix` は `nixos-generate-config --no-filesystems` で実機生成します。NIC名と起動方式・ディスクデバイスは `network-local.nix`、`boot-local.nix` に生成します。これらのファイルはGit管理外です。
+
+## 通常運用
+
+インストール後、`ssh user1@c0.local` で公開鍵認証して接続できます。管理PC自身で次の操作を実行します。
 
 ```sh
 cd /etc/nixos
@@ -32,4 +38,25 @@ sudo nixos-rebuild dry-build --flake path:/etc/nixos#c0
 sudo nixos-rebuild switch --flake path:/etc/nixos#c0
 ```
 
-**注意:** 実機検証中は `/etc/nixos` のGitブランチも作業ブランチです。mainへマージするまではmainへ切り替えないでください。通常の`nixos-rebuild switch`はdiskoによるディスク再初期化を実行しません。
+Git管理外の実機設定も評価できるよう、`path:/etc/nixos#c0` を指定します。通常の `nixos-rebuild switch` はディスクの再パーティション・フォーマットを行いません。ディスクを初期化するのはインストーラーでdiskoを明示実行したときだけです。
+
+インストール時のcloneは `--no-single-branch` を指定するため、後からGitのブランチを切り替えられます。
+
+## 依存バージョンの管理
+
+`flake.nix` は `nixpkgs` と `disko` を定義し、`flake.lock` が使用リビジョンを固定します。依存関係を意図せず更新しないよう、ロックファイルもGit管理します。
+
+GitHub Actionsの **Update flake.lock** を手動実行し、対象ブランチと操作を選択できます。
+
+- `lock`: 既存のロックを基本的に維持しつつ、不足する入力を解決
+- `update`: 依存入力を新しいリビジョンに更新
+
+workflowは変更がある場合に限って、選択したブランチへ `flake.lock` をコミットします。依存更新後は差分とNixOSのビルド・動作を確認してから適用してください。
+
+## 構成ファイル
+
+- `flake.nix` / `flake.lock`: NixOS構成のエントリーポイントと依存固定
+- `configuration.nix`: SSH、mDNS、WoL、ブートローダーなどのOS設定
+- `disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
+- `install.sh`: 初期構築の実行制御と実機固有情報の生成
+- `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成するGit管理外の実機設定
