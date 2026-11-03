@@ -2,6 +2,8 @@
 set -Eeuo pipefail
 
 REPO_URL="https://github.com/js4000all/ops-nixos-provisioner.git"
+# Use the feature branch until it has passed real-machine verification.
+REPO_REF="feat/flake-disko-bootstrap"
 MIN_DISK_BYTES=$((64 * 1024 * 1024 * 1024))
 WORKDIR="$(mktemp -d)"
 trap 'echo "Installation failed at line $LINENO" >&2' ERR
@@ -17,15 +19,17 @@ else
   boot_mode=bios
 fi
 log "Detected boot mode: $boot_mode"
-for cmd in git lsblk sgdisk partprobe udevadm mkfs.vfat mkfs.ext4 mount mountpoint nixos-generate-config nixos-install; do
+for cmd in git lsblk findmnt mountpoint nix nixos-generate-config nixos-install; do
   command -v "$cmd" >/dev/null || die "Required command missing: $cmd"
 done
 [[ ! -e /mnt/etc/nixos/configuration.nix ]] || die "/mnt appears to contain an existing installation."
 mountpoint -q /mnt && die "/mnt is already mounted."
 
-log "Fetching repository before changing disks..."
-git clone --depth 1 "$REPO_URL" "$WORKDIR/repo" || die "Unable to fetch repository."
-[[ -f "$WORKDIR/repo/configuration.nix" ]] || die "Missing configuration.nix."
+log "Fetching the selected repository branch before changing disks..."
+git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$WORKDIR/repo" || die "Unable to fetch repository."
+for file in configuration.nix disk-config.nix flake.nix flake.lock; do
+  [[ -f "$WORKDIR/repo/$file" ]] || die "Missing $file in $REPO_REF."
+done
 git -C "$WORKDIR/repo" rev-parse HEAD | xargs printf '[m1] Repository revision: %s\n'
 
 # Only a single non-USB, non-removable physical disk larger than 64 GiB is accepted.
@@ -67,53 +71,41 @@ while IFS= read -r source; do
   [[ "$source" != "$disk" && "/dev/$parent" != "$disk" ]] || die "Selected disk appears to back a mounted filesystem."
 done < <(findmnt -rn -o SOURCE)
 
-log "ERASING ALL DATA on $disk"
-sgdisk --zap-all "$disk"
-if [[ "$boot_mode" == uefi ]]; then
-  sgdisk -n 1:1MiB:+1GiB -t 1:ef00 -c 1:EFI "$disk"
-else
-  sgdisk -n 1:1MiB:+2MiB -t 1:ef02 -c 1:BIOS-BOOT "$disk"
-fi
-sgdisk -n 2:0:0 -t 2:8300 -c 2:nixos "$disk"
-partprobe "$disk"
-udevadm settle
-boot_partition="$(lsblk -nr -o PATH,PARTN "$disk" | awk '$2 == 1 {print $1}')"
-root="$(lsblk -nr -o PATH,PARTN "$disk" | awk '$2 == 2 {print $1}')"
-[[ -b "$boot_partition" && -b "$root" ]] || die "Partition device discovery failed."
-if [[ "$boot_mode" == uefi ]]; then
-  mkfs.vfat -F 32 -n boot "$boot_partition"
-fi
-mkfs.ext4 -F -L nixos "$root"
-mount -t ext4 "$root" /mnt
-mkdir -p /mnt/etc/nixos
-if [[ "$boot_mode" == uefi ]]; then
-  mkdir -p /mnt/boot
-  mount -o umask=077 "$boot_partition" /mnt/boot
-fi
-
-cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
-nixos-generate-config --root /mnt
-cat > /mnt/etc/nixos/network-local.nix <<EOF
+cat > "$WORKDIR/repo/network-local.nix" <<EOF
 { ... }: {
-  myHost.primaryEthernet = "${nic}";
+  myHost.primaryEthernet = "$nic";
 }
 EOF
-
-if [[ "$boot_mode" == uefi ]]; then
-  cat > /mnt/etc/nixos/boot-local.nix <<'EOF'
+cat > "$WORKDIR/repo/boot-local.nix" <<EOF
 { ... }: {
-  myHost.bootMode = "uefi";
-}
-EOF
-else
-  cat > /mnt/etc/nixos/boot-local.nix <<EOF
-{ ... }: {
-  myHost.bootMode = "bios";
+  myHost.bootMode = "$boot_mode";
   myHost.bootDisk = "$disk";
 }
 EOF
-fi
 
-log "Installing NixOS..."
-nixos-install --no-root-passwd
+# Disko evaluates the whole NixOS module graph before filesystems exist.
+# Replace this placeholder with detected hardware settings after mounting.
+cat > "$WORKDIR/repo/hardware-configuration.nix" <<'EOF'
+{ ... }: { }
+EOF
+
+flake="path:$WORKDIR/repo"
+nix_flags=(--extra-experimental-features 'nix-command flakes')
+log "Preparing disko from locked flake inputs..."
+# Fail before destructive operations if the NixOS configuration cannot evaluate.
+nix "${nix_flags[@]}" eval --raw "$flake#nixosConfigurations.c0.config.networking.hostName" >/dev/null
+
+log "ERASING ALL DATA on $disk"
+nix "${nix_flags[@]}" run "$flake#disko" -- \
+  --mode destroy,format,mount --flake "$flake#c0"
+
+log "Generating hardware configuration (without filesystem definitions)..."
+nixos-generate-config --root /mnt --no-filesystems --show-hardware-config \
+  > "$WORKDIR/repo/hardware-configuration.nix"
+
+mkdir -p /mnt/etc/nixos
+cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
+
+log "Installing NixOS from the locked feature branch..."
+nixos-install --flake "path:/mnt/etc/nixos#c0" --no-root-passwd
 log "Installation finished. Remove USB media and reboot manually."
