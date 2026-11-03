@@ -109,9 +109,9 @@ log "Committing machine-specific configuration to local Git branch..."
 git -C "$WORKDIR/repo" switch -c c0-local
 git -C "$WORKDIR/repo" add -f -- \
   hardware-configuration.nix network-local.nix boot-local.nix
-git -C "$WORKDIR/repo" -c user.name="NixOS Local" \
-  -c user.email="nixos-local@localhost" \
-  commit -m "local: c0 machine configuration"
+git -C "$WORKDIR/repo" config --local user.name "NixOS Local"
+git -C "$WORKDIR/repo" config --local user.email "nixos-local@localhost"
+git -C "$WORKDIR/repo" commit -m "local: c0 machine configuration"
 git -C "$WORKDIR/repo" branch --set-upstream-to=origin/main c0-local
 git -C "$WORKDIR/repo" config --local pull.rebase true
 git -C "$WORKDIR/repo" config --local push.default nothing
