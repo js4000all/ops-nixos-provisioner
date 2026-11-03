@@ -12,6 +12,10 @@ NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成�
 curl -fL https://raw.githubusercontent.com/js4000all/ops-nixos-provisioner/main/install.sh -o /tmp/install.sh
 sudo bash /tmp/install.sh
 ```
+もしくは、
+```sh
+curl -fL https://x.gd/S7bSj -o /tmp/install.sh
+```
 
 `install.sh` は `main` のリポジトリを取得し、ロック済みの依存関係を利用してインストールします。事前に `flake.lock` がGitへコミットされている必要があります。
 
