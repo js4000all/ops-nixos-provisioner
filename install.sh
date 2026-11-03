@@ -97,7 +97,7 @@ nix "${nix_flags[@]}" eval --raw "$flake#nixosConfigurations.c0.config.networkin
 
 log "ERASING ALL DATA on $disk"
 nix "${nix_flags[@]}" run "$flake#disko" -- \
-  --mode destroy,format,mount --flake "$flake#c0"
+  --mode destroy,format,mount --yes-wipe-all-disks --flake "$flake#c0"
 
 log "Generating hardware configuration (without filesystem definitions)..."
 nixos-generate-config --root /mnt --no-filesystems --show-hardware-config \
