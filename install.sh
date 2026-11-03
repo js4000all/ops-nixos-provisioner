@@ -102,9 +102,25 @@ log "Generating hardware configuration (without filesystem definitions)..."
 nixos-generate-config --root /mnt --no-filesystems --show-hardware-config \
   > "$WORKDIR/repo/hardware-configuration.nix"
 
+# Create a machine-local branch containing the detected configuration.
+# These files remain ignored on GitHub, but are tracked in this checkout so
+# Nix's Git flake source includes them. Never push this local branch.
+log "Committing machine-specific configuration to local Git branch..."
+git -C "$WORKDIR/repo" switch -c c0-local
+git -C "$WORKDIR/repo" add -f -- \
+  hardware-configuration.nix network-local.nix boot-local.nix
+git -C "$WORKDIR/repo" config --local user.name "NixOS Local"
+git -C "$WORKDIR/repo" config --local user.email "nixos-local@localhost"
+git -C "$WORKDIR/repo" commit -m "local: c0 machine configuration"
+git -C "$WORKDIR/repo" branch --set-upstream-to=origin/main c0-local
+git -C "$WORKDIR/repo" config --local pull.rebase true
+git -C "$WORKDIR/repo" config --local push.default nothing
+# Fetch from origin remains enabled, but accidental pushes are blocked.
+git -C "$WORKDIR/repo" config --local remote.origin.pushurl "no-push://local-only"
+
 mkdir -p /mnt/etc/nixos
 cp -a "$WORKDIR/repo/." /mnt/etc/nixos/
 
-log "Installing NixOS from locked Flake configuration..."
-nixos-install --flake "path:/mnt/etc/nixos#c0" --no-root-passwd
+log "Installing NixOS from locally committed Git Flake configuration..."
+nixos-install --flake "/mnt/etc/nixos#c0" --no-root-passwd
 log "Installation finished. Remove USB media and reboot manually."
