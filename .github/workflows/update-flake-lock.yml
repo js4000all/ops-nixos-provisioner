@@ -1,0 +1,64 @@
+name: Update flake.lock
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "lock: preserve existing pins; update: refresh all inputs"
+        required: true
+        type: choice
+        default: lock
+        options:
+          - lock
+          - update
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flake-lock-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  lock:
+    name: ${{ inputs.operation }} flake inputs
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out selected branch
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Check for flake.nix
+        run: |
+          test -f flake.nix || {
+            echo "::error::No flake.nix on the selected branch."
+            exit 1
+          }
+
+      - name: Generate or update flake.lock
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          case "$OPERATION" in
+            lock) nix flake lock ;;
+            update) nix flake update ;;
+            *) echo "::error::Unexpected operation: $OPERATION"; exit 1 ;;
+          esac
+
+      - name: Commit lock file when changed
+        run: |
+          git add flake.lock
+          if git diff --cached --quiet; then
+            echo "flake.lock is already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: ${{ inputs.operation }} flake.lock"
+          git push origin "HEAD:$GITHUB_REF"
