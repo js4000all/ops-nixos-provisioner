@@ -38,10 +38,9 @@
       wakeOnLan.enable = true;
     };
 
-    boot.loader.grub = lib.mkIf (config.myHost.bootMode == "bios") {
-      enable = true;
-      device = config.myHost.bootDisk;
-    };
+    # Disko derives GRUB's install devices from disko.devices.
+    # Do not specify boot.loader.grub.device here: that duplicates the device.
+    boot.loader.grub.enable = config.myHost.bootMode == "bios";
     boot.loader.systemd-boot.enable = config.myHost.bootMode == "uefi";
     boot.loader.efi.canTouchEfiVariables = config.myHost.bootMode == "uefi";
 
