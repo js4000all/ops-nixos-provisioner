@@ -29,20 +29,23 @@ curl -fL https://x.gd/S7bSj -o /tmp/install.sh
 
 スクリプトはディスク・NIC・起動方式を自動検出し、インストーラーが使用中のディスクと推定される場合には初期化を拒否します。diskoがパーティション作成・フォーマット・マウントを行い、その後 `nixos-install` でOSを導入します。パーティション作成は破壊的操作です。
 
-`hardware-configuration.nix` は `nixos-generate-config --no-filesystems` で実機生成します。NIC名と起動方式・ディスクデバイスは `network-local.nix`、`boot-local.nix` に生成します。これらのファイルはGit管理外です。
+`hardware-configuration.nix` は `nixos-generate-config --no-filesystems` で実機生成します。NIC名と起動方式・ディスクデバイスは `network-local.nix`、`boot-local.nix` に生成します。これらのファイルはGitHub上の共通ブランチではGit管理外ですが、インストール時に対象PC専用の `c0-local` ブランチへローカルコミットします。GitHubにはpushしません。
 
 ## 通常運用
 
-インストール後、`ssh user1@c0.local` で公開鍵認証して接続できます。管理PC自身で次の操作を実行します。
+インストール後、`ssh user1@c0.local` で公開鍵認証して接続できます。初期構築時に `/etc/nixos` の作業コピーには `c0-local` ブランチが作成され、生成された実機設定だけがコミットされています。上流は `origin/main` です。管理PC自身で次の操作を実行します。
 
 ```sh
 cd /etc/nixos
-sudo git pull --ff-only
-sudo nixos-rebuild dry-build --flake path:/etc/nixos#c0
-sudo nixos-rebuild switch --flake path:/etc/nixos#c0
+sudo git status -sb
+sudo git pull --rebase
+sudo nixos-rebuild dry-build --flake .#c0
+sudo nixos-rebuild switch --flake .#c0
 ```
 
-Git管理外の実機設定も評価できるよう、`path:/etc/nixos#c0` を指定します。通常の `nixos-rebuild switch` はディスクの再パーティション・フォーマットを行いません。ディスクを初期化するのはインストーラーでdiskoを明示実行したときだけです。
+`git pull --rebase` は `origin/main` の新しいコミットの上にローカル専用コミットを再適用します。ローカル設定はGit追跡済みなので通常のGit flake（`.#c0`）で評価できます。ローカルGit設定では `pull.rebase=true`、`push.default=nothing` に加えてpush先を無効なURLへ設定し、誤pushを防ぎます。ローカルコミットはGitHubには存在しないため、実機固有の完全なflake構成をGitHub上のコミットだけから再現することはできません。
+
+rebaseが競合で停止した場合は競合を解消して `sudo git rebase --continue`、または `sudo git rebase --abort` を実行し、完了するまではrebuildしないでください。`git status` で未コミット変更が残っていないことを確認して更新します。通常の `nixos-rebuild switch` はディスクの再パーティション・フォーマットを行いません。ディスクを初期化するのはインストーラーでdiskoを明示実行したときだけです。
 
 インストール時のcloneは `--no-single-branch` を指定するため、後からGitのブランチを切り替えられます。
 
@@ -82,4 +85,5 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 - `disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
 - `install.sh`: 初期構築の実行制御と実機固有情報の生成
 - `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
-- `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成するGit管理外の実機設定
+- `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成し、実機専用のローカルGitコミットでのみ追跡する設定
+- `docs/local-host-config.md`: ローカルブランチ運用上の制約と今後の検討課題
