@@ -5,6 +5,7 @@
     ./network-local.nix
     ./boot-local.nix
     ./ubuntu-iso.nix
+    ./ubuntu-http.nix
   ];
 
   options.myHost = {
