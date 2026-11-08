@@ -67,7 +67,7 @@ ISOの保存先は `/var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso`
 
 ## Ubuntu Server ISOのHTTP配信
 
-`ubuntu-http.nix` でnginxを有効化し、取得済みISOだけをHTTP公開します。PXEやAutoinstallはまだ設定しません。ポート80はLAN内に限らず、`c0` に到達できるネットワークからアクセス可能になるため、ルーターやネットワーク境界の設定に注意してください。
+`ubuntu-http.nix` でnginxを有効化し、取得済みISOだけをHTTP公開します。ISO配信とNoCloudシード配信は別のNixモジュールに分離しています。ポート80はLAN内に限らず、`c0` に到達できるネットワークからアクセス可能になるため、ルーターやネットワーク境界の設定に注意してください。
 
 ISO取得済みの状態で設定を適用すると、既存ファイルの読み取り権限もsystemd-tmpfilesで調整します。ISO取得サービスによる新規取得・再検証時にも読み取り権限を設定します。
 
@@ -102,9 +102,31 @@ Pixiecoreは**手動起動専用**です。停止する場合は `sudo systemctl
 
 PXE起動時、Pixiecoreは対象PCへカーネルとinitrdを配布し、インストーラーにはnginxで配信するISOのURLを渡します。URLのホスト部分にはサービス開始時に`myHost.primaryEthernet`から取得したIPv4アドレスを利用するため、`c0.local`のmDNS名前解決に依存しません。サービス起動後にIPアドレスが変わった場合はPixiecoreを再起動してください。
 
-ファイアウォールでUDP 67・69・4011およびTCP 64172を許可します。Pixiecore稼働中は同一LANの他のPXEクライアントにも応答し得ます。対象PCをネットワークブートし、Ubuntu Serverインストーラーの画面まで到達することを確認してください。**Autoinstallは無効であり、ディスク初期化や無人インストールは行いません。** インストーラー画面上でインストールを進める場合はディスク書き込みが発生する点に注意してください。
+ファイアウォールでUDP 67・69・4011およびTCP 64172を許可します。Pixiecore稼働中は同一LANの他のPXEクライアントにも応答し得ます。対象PCをネットワークブートし、Ubuntu Serverインストーラーの画面まで到達することを確認してください。**Autoinstall設定の読み込みテスト用で、すべての設定セクションは対話式です。無人でディスクを初期化しません。** インストーラー画面上でインストールを進める場合はディスク書き込みが発生する点に注意してください。
 
 起動に失敗する場合は、まず`journalctl -u ubuntu-pxe.service`でPixiecoreの応答を確認してください。対象PC側のPXE実装との相性やLANのDHCP環境によっては追加調整が必要です。
+
+## Ubuntu Autoinstall NoCloud読み込み検証（ディスク変更なし）
+
+`ubuntu-autoinstall.nix` でNoCloudシードを読み取り専用のNix Storeからnginxで公開します。Ubuntuのインストーラーが設定を認識するかだけを検証する段階です。
+
+- `/ubuntu/autoinstall/user-data`: `#cloud-config` と `autoinstall.version: 1`、`interactive-sections: ["*"]`
+- `/ubuntu/autoinstall/meta-data`: 空ファイル
+- PXEのカーネル引数に `autoinstall ds=nocloud-net\\;s=http://<c0のIPv4>/ubuntu/autoinstall/` を追加します。NoCloud URL末尾の `/` は必須です。Pixiecoreには引用符で囲んだ1つの `--cmdline` 引数を渡すため、`;` のシェル向けエスケープは不要です。
+
+`interactive-sections: ["*"]` のため全設定セクションが対話式になります。**自動的なディスク初期化・自動インストールを意図しません。** ただしインストーラー上で手動操作を続けるとディスクへ書き込めます。**設定読込を確認したらインストールを開始せず終了してください。**
+
+```sh
+sudo nixos-rebuild dry-build --flake .#c0
+sudo nixos-rebuild switch --flake .#c0
+curl -fsS http://c0.local/ubuntu/autoinstall/user-data
+curl -fsS -o /dev/null -w '%{http_code}\n' http://c0.local/ubuntu/autoinstall/meta-data
+sudo systemctl start ubuntu-pxe-prepare.service
+sudo systemctl restart ubuntu-pxe.service
+journalctl -u ubuntu-pxe.service -n 30
+```
+
+PXE起動したインストーラーで通常の対話画面が表示されること、ならびにターゲット側のインストーラーシェルで `/var/log/installer/` のログを調べ、NoCloud seedとautoinstall設定が認識されたことを確認します。**対話画面が表示されただけでは読み込み成功の証明にはなりません。** ログで確認できない場合、HTTPアクセスログ、カーネル引数（`/proc/cmdline`）、cloud-initログを確認してください。検証後は `sudo systemctl stop ubuntu-pxe.service` でPXE応答を停止します。
 
 ## 依存バージョンの管理
 
@@ -126,5 +148,6 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 - `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
 - `ubuntu-http.nix`: nginxによるUbuntu Server ISOのHTTP配信
 - `ubuntu-pxe.nix`: Legacy BIOS向けPixiecore起動・ISOからの起動ファイル準備
+- `ubuntu-autoinstall.nix`: 対話式NoCloudテストシードのHTTP公開
 - `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成し、実機専用のローカルGitコミットでのみ追跡する設定
 - `docs/local-host-config.md`: ローカルブランチ運用上の制約と今後の検討課題
