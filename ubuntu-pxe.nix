@@ -51,6 +51,11 @@ let
       ${pkgs.gawk}/bin/awk 'NR == 1 { split($4, address, "/"); print address[1] }')"
     test -n "$ip" || { echo "No IPv4 address on primary Ethernet" >&2; exit 1; }
 
+    test -s /var/lib/ubuntu-autoinstall/user-data && test -f /var/lib/ubuntu-autoinstall/meta-data || {
+      echo "NoCloud seed missing; run sudo ubuntu-autoinstall-select HOSTNAME before PXE" >&2
+      exit 1
+    }
+
     iso_url="http://$ip/ubuntu/${isoName}"
     seed_url="http://$ip/ubuntu/autoinstall/"
     echo "Starting Pixiecore, installer ISO: $iso_url; seed: $seed_url"
