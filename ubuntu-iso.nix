@@ -12,6 +12,7 @@ let
 
     # Reuse only files that match the pinned checksum.
     if [ -f "$target" ] && printf '%s  %s\n' "${isoSha256}" "$target" | ${pkgs.coreutils}/bin/sha256sum --check --status; then
+      ${pkgs.coreutils}/bin/chmod 0644 "$target"
       echo "Verified ISO already exists: $target"
       exit 0
     fi
@@ -28,11 +29,17 @@ let
       exit 1
     }
 
+    ${pkgs.coreutils}/bin/chmod 0644 "$tmp"
     ${pkgs.coreutils}/bin/mv -f "$tmp" "$target"
     echo "Verified ISO saved: $target"
   '';
 in
 {
+  # Fix permissions on an ISO fetched before HTTP delivery was enabled.
+  systemd.tmpfiles.rules = [
+    "z /var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso 0644 root root -"
+  ];
+
   # Manual only: no wantedBy or timer.
   systemd.services.ubuntu-iso-fetch = {
     description = "Fetch and verify Ubuntu Server 26.04.1 ISO";

@@ -65,7 +65,23 @@ ISOの保存先は `/var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso`
 
 サービスを再実行すると、保存済みISOのSHA256を確認します。一致すればダウンロードを省略し、不一致または未取得の場合は再ダウンロードします。取得ファイルは検証成功後に配置します。ISOはNix StoreとGitの管理対象外です。
 
-この段階ではISOを保存するだけで、PXE・HTTP配信・Autoinstallはまだ設定していません。
+## Ubuntu Server ISOのHTTP配信
+
+`ubuntu-http.nix` でnginxを有効化し、取得済みISOだけをHTTP公開します。PXEやAutoinstallはまだ設定しません。ポート80はLAN内に限らず、`c0` に到達できるネットワークからアクセス可能になるため、ルーターやネットワーク境界の設定に注意してください。
+
+ISO取得済みの状態で設定を適用すると、既存ファイルの読み取り権限もsystemd-tmpfilesで調整します。ISO取得サービスによる新規取得・再検証時にも読み取り権限を設定します。
+
+```sh
+sudo nixos-rebuild dry-build --flake .#c0
+sudo nixos-rebuild switch --flake .#c0
+systemctl is-active nginx
+curl -I http://c0.local/ubuntu/ubuntu-26.04.1-live-server-amd64.iso
+curl -r 0-1023 -D - -o /dev/null http://c0.local/ubuntu/ubuntu-26.04.1-live-server-amd64.iso
+```
+
+HEAD要求は `200 OK`、範囲取得は `206 Partial Content` を想定しています。ISO未取得なら先に `sudo systemctl start ubuntu-iso-fetch.service` を実行してください。Nginxの公開対象はこのISOの正確なURLだけで、ディレクトリ一覧や他のファイルは公開しません。
+
+PXEの起動パラメータからはmDNSを前提にせず、`c0` のLAN内IPアドレスを指定します。
 
 ## 依存バージョンの管理
 
@@ -85,5 +101,6 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 - `disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
 - `install.sh`: 初期構築の実行制御と実機固有情報の生成
 - `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
+- `ubuntu-http.nix`: nginxによるUbuntu Server ISOのHTTP配信
 - `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成し、実機専用のローカルGitコミットでのみ追跡する設定
 - `docs/local-host-config.md`: ローカルブランチ運用上の制約と今後の検討課題
