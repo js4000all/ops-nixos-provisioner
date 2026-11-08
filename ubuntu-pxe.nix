@@ -61,7 +61,7 @@ let
     echo "Starting Pixiecore, installer ISO: $iso_url; seed: $seed_url"
     exec ${pkgs.pixiecore}/bin/pixiecore boot \
       "${bootDir}/vmlinuz" "${bootDir}/initrd" \
-      --cmdline "root=/dev/ram0 ramdisk_size=1500000 ip=dhcp url=$iso_url autoinstall ds=nocloud-net\\;s=$seed_url" \
+      --cmdline "root=/dev/ram0 ramdisk_size=1500000 ip=dhcp url=$iso_url autoinstall ds=nocloud-net;s=$seed_url" \
       --dhcp-no-bind --port 64172 --status-port 64172
   '';
 in
