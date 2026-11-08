@@ -2,6 +2,8 @@
 
 NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成はFlakesで、ディスク構成はdiskoで管理します。
 
+**初めて構築する場合:** [Getting Started — 管理PCの初回インストールからUbuntu対象PCのPXE起動まで](docs/getting-started.md) を参照してください。
+
 ## 初期構築
 
 対象PCでNixOS Minimal ISOを起動し、有線LAN（DHCP）でネットワークに接続します。インストールには別の管理PCやNixツールを用意する必要はありません。
