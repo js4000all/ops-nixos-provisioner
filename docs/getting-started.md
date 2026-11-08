@@ -1,12 +1,12 @@
 # Getting Started — 管理PCからUbuntu対象PCを初期構築する
 
-この手順は、新しい管理PC **c0** をNixOS Minimal ISOから構築し、その管理PCを使って対象PC **k2** にUbuntu ServerをPXE経由でインストールするまでの、人手での作業をまとめたものです。既存ルーターがDHCPを配布し、両PCが同じ有線LANに接続している前提です。
+この手順は、新しい管理PC (ホスト名は`c0`固定になっています) をNixOS Minimal ISOから構築し、その管理PCを使って対象PC **k2** にUbuntu ServerをPXE経由でインストールするまでの、人手での作業をまとめたものです。既存ルーターがDHCPを配布し、両PCが同じ有線LANに接続している前提です。
 
 > **データ消去に注意:** 管理PCの `install.sh` と対象PCのAutoinstallは、いずれもインストール先ディスクの内容を消去します。対象PCのPXE起動後は確認画面なしで初期化が始まります。
 
 ## 1. 手元で用意するもの
 
-- 管理PC c0：64GiBを超える内蔵ディスク1台、有線NIC1つ。USBからNixOS Minimal ISOを起動できること
+- 管理PC (`c0`)：64GiBを超える内蔵ディスク1台、有線NIC1つ。USBからNixOS Minimal ISOを起動できること
 - Ubuntu対象PC：Legacy BIOSのPXE起動が可能、有線LAN、初期化してよい内蔵ディスク1台、インストール用USBは接続しない
 - 同じLANに接続するルーター：既存のDHCPをそのまま使う
 - 管理・操作用端末： `ssh/authorized_keys` に対応する**秘密鍵**を持ち、`*.local` のmDNS解決ができること
@@ -84,7 +84,7 @@ curl -I http://c0.local/ubuntu/ubuntu-26.04.1-live-server-amd64.iso
 ## 6. 対象PCにUbuntu Serverを無人インストールする
 
 1. **対象PC側:** デフォルトの起動順序が**内蔵ディスク優先**であることを確認する。起動時に手動選択できるLegacy BIOSのネットワークブートを有効にしておく。
-2. **c0側:** インストール先のホスト名を指定して、Pixiecoreを起動する。
+2. **c0側:** インストール先のホスト名を指定して、Pixiecoreを起動する。下記の例は対象PCのホスト名を`k2`に設定する前提ですが、任意の名前を指定できます。
 
 ```sh
 sudo ubuntu-autoinstall-select k2
