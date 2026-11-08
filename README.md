@@ -112,7 +112,7 @@ PXE起動時、Pixiecoreは対象PCへカーネルとinitrdを配布し、イン
 
 - `/ubuntu/autoinstall/user-data`: `#cloud-config` と `autoinstall.version: 1`、`interactive-sections: ["*"]`
 - `/ubuntu/autoinstall/meta-data`: 空ファイル
-- PXEのカーネル引数に `autoinstall ds=nocloud-net\\;s=http://<c0のIPv4>/ubuntu/autoinstall/` を追加します。NoCloud URL末尾の `/` は必須です。Pixiecoreの引数内ではシェルの区切り文字ではなくカーネル文字列の `;` を渡す必要があります。
+- PXEのカーネル引数に `autoinstall ds=nocloud-net\\;s=http://<c0のIPv4>/ubuntu/autoinstall/` を追加します。NoCloud URL末尾の `/` は必須です。Pixiecoreには引用符で囲んだ1つの `--cmdline` 引数を渡すため、`;` のシェル向けエスケープは不要です。
 
 `interactive-sections: ["*"]` のため全設定セクションが対話式になります。**自動的なディスク初期化・自動インストールを意図しません。** ただしインストーラー上で手動操作を続けるとディスクへ書き込めます。**設定読込を確認したらインストールを開始せず終了してください。**
 
