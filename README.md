@@ -103,20 +103,20 @@ Pixiecoreは**手動起動専用**です。停止する場合は `sudo systemctl
 
 PXE起動時、Pixiecoreは対象PCへカーネルとinitrdを配布し、インストーラーにはnginxで配信するISOのURLを渡します。URLのホスト部分にはサービス開始時に`myHost.primaryEthernet`から取得したIPv4アドレスを利用するため、`c0.local`のmDNS名前解決に依存しません。サービス起動後にIPアドレスが変わった場合はPixiecoreを再起動してください。
 
-ファイアウォールでUDP 67・69・4011およびTCP 64172を許可します。Pixiecore稼働中は同一LANの他のPXEクライアントにも応答し得ます。対象PCをネットワークブートし、Ubuntu Serverインストーラーの画面まで到達することを確認してください。**Autoinstallはストレージ画面を対話式にしてあります。手動で先へ進めるとディスクを初期化できます。** インストーラー画面上でインストールを進める場合はディスク書き込みが発生する点に注意してください。
+ファイアウォールでUDP 67・69・4011およびTCP 64172を許可します。Pixiecore稼働中は同一LANの他のPXEクライアントにも応答し得ます。対象PCをネットワークブートし、Ubuntu Serverインストーラーの画面まで到達することを確認してください。**Autoinstallは非対話式です。PXE起動後、対象ディスクが確認なしで消去され、OS導入後に自動再起動します。** Pixiecoreは自動停止しません。
 
 起動に失敗する場合は、まず`journalctl -u ubuntu-pxe.service`でPixiecoreの応答を確認してください。対象PC側のPXE実装との相性やLANのDHCP環境によっては追加調整が必要です。
 
-## Ubuntu Serverホスト別Autoinstall（ストレージ確認付き）
+## Ubuntu Serverホスト別Autoinstall（完全無人インストール）
 
 c0でホスト名を指定してNoCloud seedを生成します。毎回NixOSをrebuildする必要はありません。PXEで同時に異なるホストを初期化する方式ではなく、**1台ずつ**作業します。
 
 共通設定は英語ロケール、日本語キーボード、Asia/Tokyo、chrony（NTP）、Avahi（mDNS）、有線DHCP、`user1`（パスワードロック・パスワードなしsudo）、rootログイン禁止、SSH公開鍵認証のみです。公開鍵はリポジトリ内の `ssh/authorized_keys` を使用します。インストール済みOSのユーザーやネットワーク設定はcloud-initの初回起動時に反映されます。
 
-`storage.layout.name = direct` は1ディスクを想定しますが、**今回のPRでは `interactive-sections: [storage]` を残しています**。画面でストレージ選択を目視で確認して終了するか、インストールを実際に行う場合はディスクが消去されることを理解した上で進めます。対話操作でインストールを進めるとディスクが書き換えられます。
+**破壊的操作:** PXE対象PCにはインストール対象ディスクが1台だけあり、USBメディアは接続されていない前提です。`storage.layout.name = direct` と `interactive-sections: []` により、インストーラーはディスク選択・パーティション確認・破壊的変更確認の入力待ちをせず、対象ディスク全体を消去します。`shutdown: reboot` によりインストール完了時に自動再起動します。対象PCが必ず正しいディスクを持つことを確認してからPXE起動してください。
 
 ```sh
-# PRブランチを c0 に取り込み、構成を適用した後:
+# 変更ブランチを c0 に取り込み、構成を適用した後:
 sudo nixos-rebuild dry-build --flake .#c0
 sudo nixos-rebuild switch --flake .#c0
 
@@ -134,11 +134,11 @@ journalctl -u ubuntu-pxe.service -n 30
 
 ホスト名には小文字英字で始まる英数字・ハイフンのみ使用できます。末尾ハイフンと64文字以上は拒否します。`ubuntu-pxe.service` はseed未生成時に起動失敗するようにしてあります。
 
-対象PCでPXE起動してストレージ画面に到達することを確認し、`/proc/cmdline`、`/var/log/installer/` および `/var/log/cloud-init.log` でNoCloud seed取得を確認してください。NoCloud URLへのHTTPアクセス履歴も合わせて確認できます。**ストレージ画面に進んだだけでは全設定の適用成功を示しません。**
+対象PCをPXE起動すると、ディスクは確認なしで初期化され、インストール後に自動再起動します。作業途中での対話入力は想定していません。インストール中は対象PCの画面や `/var/log/installer/`、c0側のnginxアクセスログで進捗を確認します。初回起動後にSSHが使える状態になればインストール結果を確認できます。
 
-実際にインストールする場合はディスクの消去を伴います。初回起動後は `ssh user1@k2.local` で公開鍵ログインを確認し、`hostnamectl`、`timedatectl`、`systemctl status chrony avahi-daemon ssh`、`sudo -n true` を検証してください。パスワードログインは利用できません。
+初回起動後は `ssh user1@k2.local` で公開鍵ログインを確認し、`hostnamectl`、`timedatectl`、`systemctl status chrony avahi-daemon ssh`、`sudo -n true` を検証してください。パスワードログインは利用できません。
 
-終了時は `sudo systemctl stop ubuntu-pxe.service` を実行します。シード配信はLAN内で参照可能なため、PXEサーバー稼働中は意図しないクライアントの起動に注意してください。
+自動再起動時に再度PXE起動すると、同じNoCloud seedでインストールを繰り返す危険があります。対象PCはインストール後に内蔵ディスクから起動する設定にしておくか、最初のPXEブート後にPixiecoreを手動停止してください。終了時は `sudo systemctl stop ubuntu-pxe.service` を実行します。シード配信はLAN内で参照可能なため、PXEサーバー稼働中は意図しないクライアントの起動に注意してください。
 
 ## 依存バージョンの管理
 
