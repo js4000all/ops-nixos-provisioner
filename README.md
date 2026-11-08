@@ -83,6 +83,29 @@ HEAD要求は `200 OK`、範囲取得は `206 Partial Content` を想定して�
 
 PXEの起動パラメータからはmDNSを前提にせず、`c0` のLAN内IPアドレスを指定します。
 
+## Ubuntu ServerのLegacy BIOS PXE起動（手動検証）
+
+対象PCはLegacy BIOSでPXE有効化済み、同一LANの既存ルーターがDHCPを担当する構成です。PixiecoreをProxyDHCP（`--dhcp-no-bind`）で起動し、既存DHCPによるIP払い出しは変更しません。
+
+ISOを先に取得し、Ubuntu Server 26.04.1 ISO内の`casper/vmlinuz`と`casper/initrd`を展開します。SHA256一致を確認してから展開し、`/var/lib/ubuntu-pxe/current/`に保存します。
+
+```sh
+sudo nixos-rebuild dry-build --flake .#c0
+sudo nixos-rebuild switch --flake .#c0
+sudo systemctl start ubuntu-pxe-prepare.service
+sudo systemctl start ubuntu-pxe.service
+systemctl status ubuntu-pxe.service
+journalctl -u ubuntu-pxe.service -f
+```
+
+Pixiecoreは**手動起動専用**です。停止する場合は `sudo systemctl stop ubuntu-pxe.service` を実行してください。OS起動時・rebuild時には自動起動しません。準備サービスも手動です。
+
+PXE起動時、Pixiecoreは対象PCへカーネルとinitrdを配布し、インストーラーにはnginxで配信するISOのURLを渡します。URLのホスト部分にはサービス開始時に`myHost.primaryEthernet`から取得したIPv4アドレスを利用するため、`c0.local`のmDNS名前解決に依存しません。サービス起動後にIPアドレスが変わった場合はPixiecoreを再起動してください。
+
+ファイアウォールでUDP 67・69・4011およびTCP 64172を許可します。Pixiecore稼働中は同一LANの他のPXEクライアントにも応答し得ます。対象PCをネットワークブートし、Ubuntu Serverインストーラーの画面まで到達することを確認してください。**Autoinstallは無効であり、ディスク初期化や無人インストールは行いません。** インストーラー画面上でインストールを進める場合はディスク書き込みが発生する点に注意してください。
+
+起動に失敗する場合は、まず`journalctl -u ubuntu-pxe.service`でPixiecoreの応答を確認してください。対象PC側のPXE実装との相性やLANのDHCP環境によっては追加調整が必要です。
+
 ## 依存バージョンの管理
 
 `flake.nix` は `nixpkgs` と `disko` を定義し、`flake.lock` が使用リビジョンを固定します。依存関係を意図せず更新しないよう、ロックファイルもGit管理します。
@@ -102,5 +125,6 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 - `install.sh`: 初期構築の実行制御と実機固有情報の生成
 - `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
 - `ubuntu-http.nix`: nginxによるUbuntu Server ISOのHTTP配信
+- `ubuntu-pxe.nix`: Legacy BIOS向けPixiecore起動・ISOからの起動ファイル準備
 - `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成し、実機専用のローカルGitコミットでのみ追跡する設定
 - `docs/local-host-config.md`: ローカルブランチ運用上の制約と今後の検討課題
