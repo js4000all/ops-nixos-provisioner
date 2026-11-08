@@ -14,7 +14,7 @@ let
       timezone = "Asia/Tokyo";
       storage.layout.name = "direct";
       ssh = { install-server = true; allow-pw = false; };
-      packages = [ "avahi-daemon" "libnss-mdns" "chrony" ];
+      packages = [ "avahi-daemon" "libnss-mdns" "chrony" "ethtool" ];
       user-data = {
         hostname = "__HOSTNAME__";
         preserve_hostname = false;
@@ -29,21 +29,61 @@ let
           sudo = "ALL=(ALL) NOPASSWD:ALL";
           ssh_authorized_keys = keys;
         }];
-        write_files = [{
-          path = "/etc/ssh/sshd_config.d/00-provisioner.conf";
-          permissions = "0644";
-          content = ''
-            PasswordAuthentication no
-            KbdInteractiveAuthentication no
-            PermitRootLogin no
-            PubkeyAuthentication yes
-          '';
-        }];
+        write_files = [
+          {
+            path = "/etc/ssh/sshd_config.d/00-provisioner.conf";
+            permissions = "0644";
+            content = ''
+              PasswordAuthentication no
+              KbdInteractiveAuthentication no
+              PermitRootLogin no
+              PubkeyAuthentication yes
+            '';
+          }
+          {
+            path = "/usr/local/sbin/enable-wol";
+            permissions = "0755";
+            content = ''
+              #!/bin/sh
+              set -eu
+              found=0
+              for path in /sys/class/net/*; do
+                nic="''${path##*/}"
+                [ "$nic" != lo ] || continue
+                [ -e "$path/device" ] || continue
+                [ ! -d "$path/wireless" ] && [ ! -e "$path/phy80211" ] || continue
+                [ "$(cat "$path/type")" = 1 ] || continue
+                found=1
+                /usr/sbin/ethtool -s "$nic" wol g
+              done
+              [ "$found" -eq 1 ] || { echo "No physical wired NIC found" >&2; exit 1; }
+            '';
+          }
+          {
+            path = "/etc/systemd/system/enable-wol.service";
+            permissions = "0644";
+            content = ''
+              [Unit]
+              Description=Enable Wake-on-LAN on wired NICs
+              After=network-online.target
+
+              [Service]
+              Type=oneshot
+              ExecStart=/usr/local/sbin/enable-wol
+              RemainAfterExit=yes
+
+              [Install]
+              WantedBy=multi-user.target
+            '';
+          }
+        ];
         runcmd = [
           "passwd -l root"
           "systemctl enable --now avahi-daemon"
           "systemctl enable --now chrony"
           "systemctl restart ssh"
+          "systemctl daemon-reload"
+          "systemctl enable --now enable-wol.service"
         ];
       };
     };
