@@ -4,6 +4,8 @@ NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成�
 
 **初めて構築する場合:** [Getting Started — 管理PCの初回インストールからUbuntu対象PCのPXE起動まで](docs/getting-started.md) を参照してください。
 
+**今後の整備計画:** [Provisioning Roadmap](docs/roadmap.md) に残課題とマイルストーンを整理しています。
+
 ## 初期構築
 
 対象PCでNixOS Minimal ISOを起動し、有線LAN（DHCP）でネットワークに接続します。インストールには別の管理PCやNixツールを用意する必要はありません。
