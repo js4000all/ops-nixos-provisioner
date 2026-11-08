@@ -4,6 +4,16 @@
 
 > **データ消去に注意:** 管理PCの `install.sh` と対象PCのAutoinstallは、いずれもインストール先ディスクの内容を消去します。対象PCのPXE起動後は確認画面なしで初期化が始まります。
 
+大まかな流れは次のとおりです。
+
+1. 管理PCをNixOS Minimal ISOで起動
+2. Minimal ISO上で本リポジトリの`install.sh`を取得し実行→管理PCがssh接続可能な状態で起動
+3. 管理PC上で対象PCにインストールしたいISOをダウンロード
+4. 管理PC上でPXEサーバ(Pixiecore)起動
+5. 対象PCをネットワークブート→対象PCがssh接続可能な状態で起動
+
+詳細は以下を参照ください。
+
 ## 1. 手元で用意するもの
 
 - 管理PC (`c0`)：64GiBを超える内蔵ディスク1台、有線NIC1つ。USBからNixOS Minimal ISOを起動できること
