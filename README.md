@@ -109,6 +109,31 @@ PXE起動時、Pixiecoreは対象PCへカーネルとinitrdを配布し、イン
 
 ## Ubuntu Serverホスト別Autoinstall（完全無人インストール）
 
+### PXEインストール手順
+
+事前に管理PC `c0` でISOとPXE起動用ファイルを準備し、NixOS設定を適用しておきます。通常のインストール操作は次の5ステップだけです。
+
+1. **対象PC**: デフォルトの起動先が内蔵ディスクであることを確認する。
+2. **管理PC（c0）**: ホスト名を指定してPixiecoreを起動する。
+
+   ```sh
+   sudo ubuntu-autoinstall-select k2
+   sudo systemctl start ubuntu-pxe.service
+   ```
+
+3. **対象PC**: 電源を入れ、起動オプション（Boot Menu）から一度だけネットワーク起動を選ぶ。
+4. **待つ**: Autoinstallがディスクを初期化してUbuntuを導入し、自動再起動する。再起動後は内蔵ディスクから起動する。
+5. **管理PCなどから接続**: 設定したホスト名でSSH接続する。
+
+   ```sh
+   ssh user1@k2.local
+   ```
+
+**ネットワーク起動すると、対象PCの内蔵ディスクは確認なしで消去されます。** 初回起動後にSSHが受け付けられるまでの所要時間には幅があります。現時点では完了検知・Pixiecoreの自動停止は未実装なので、作業後はc0で `sudo systemctl stop ubuntu-pxe.service` を実行します。
+
+### 設定と検証用コマンド
+
+
 c0でホスト名を指定してNoCloud seedを生成します。毎回NixOSをrebuildする必要はありません。PXEで同時に異なるホストを初期化する方式ではなく、**1台ずつ**作業します。
 
 共通設定は英語ロケール、日本語キーボード、Asia/Tokyo、chrony（NTP）、Avahi（mDNS）、有線DHCP、`user1`（パスワードロック・パスワードなしsudo）、rootログイン禁止、SSH公開鍵認証のみです。公開鍵はリポジトリ内の `ssh/authorized_keys` を使用します。インストール済みOSのユーザーやネットワーク設定はcloud-initの初回起動時に反映されます。
