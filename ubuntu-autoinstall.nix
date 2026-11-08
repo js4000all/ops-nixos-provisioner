@@ -48,7 +48,7 @@ let
               set -eu
               found=0
               for path in /sys/class/net/*; do
-                nic="${path##*/}"
+                nic="''${path##*/}"
                 [ "$nic" != lo ] || continue
                 [ -e "$path/device" ] || continue
                 [ ! -d "$path/wireless" ] && [ ! -e "$path/phy80211" ] || continue
@@ -65,7 +65,7 @@ let
             content = ''
               [Unit]
               Description=Enable Wake-on-LAN on wired NICs
-              After=network.target
+              After=network-online.target
 
               [Service]
               Type=oneshot
