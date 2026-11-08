@@ -6,8 +6,9 @@ let
   template = yaml.generate "ubuntu-autoinstall-template.yaml" {
     autoinstall = {
       version = 1;
-      # Do not initiate partitioning without an operator reviewing storage.
-      interactive-sections = [ "storage" ];
+      # Fully unattended: the selected disk is erased without confirmation.
+      interactive-sections = [ ];
+      shutdown = "reboot";
       locale = "en_US.UTF-8";
       keyboard = { layout = "jp"; variant = ""; };
       timezone = "Asia/Tokyo";
@@ -74,7 +75,7 @@ let
     printf 'instance-id: ubuntu-%s\nlocal-hostname: %s\n' "$host" "$host" > "$dir/.meta-data.tmp"
     ${pkgs.coreutils}/bin/chmod 0644 "$dir/.meta-data.tmp"
     ${pkgs.coreutils}/bin/mv -f "$dir/.meta-data.tmp" "$dir/meta-data"
-    echo "Prepared NoCloud seed for $host (storage remains interactive)"
+    echo "Prepared unattended NoCloud seed for $host (disk will be erased without confirmation)"
   '';
 in
 {
