@@ -1,6 +1,6 @@
 # Provisioning Roadmap
 
-最終更新: 2026-11-08
+最終更新: 2026-11-16
 
 ## 現在地
 
@@ -22,6 +22,8 @@
 ## マイルストーン
 
 ### M1: リポジトリ整理と最低限のテスト（優先度: 高）
+
+静的なcontroller/provisionerモジュールの分離と管理PCへのPython/Ansible導入は第一段階のPRで着手。ワーカー用Ansible roles、CLI実装、生成物テストは後続PRで扱う。
 
 責務を `controller/`（c0のNixOS/disko/install.sh）、`provisioner/`（ISO/nginx/Pixiecore/CLI）、`worker/`（Autoinstall、共通設定、役割別設定）に分けることを検討する。公開鍵など共有データは独立させる。具体的なディレクトリ名はリファクタリングPRで確定する。
 
