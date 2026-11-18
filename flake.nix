@@ -13,9 +13,9 @@
     nixosConfigurations.c0 = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
-        ./configuration.nix
+        ./controller/configuration.nix
         disko.nixosModules.disko
-        ./disk-config.nix
+        ./controller/disk-config.nix
       ];
     };
 

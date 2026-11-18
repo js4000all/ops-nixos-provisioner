@@ -6,6 +6,15 @@ NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成�
 
 **今後の整備計画:** [Provisioning Roadmap](docs/roadmap.md) に残課題とマイルストーンを整理しています。
 
+## 構成の責務分離
+
+- `controller/`: 管理PC `c0` 自身の静的なNixOS/disko構成
+- `provisioner/ubuntu/`: UbuntuワーカーのISO、HTTP、PXE、Autoinstall配信・準備機能
+- `worker/`: ワーカーの継続構成管理のための領域（次段階でAnsible rolesを追加）
+- `install.sh`: 公開済みBootstrap URLを維持する管理PCインストーラー。実機固有の`hardware-configuration.nix`、`network-local.nix`、`boot-local.nix`は引き続きリポジトリ直下に生成される
+
+`c0`にはNixOS構成を通じてPython 3とAnsibleが導入されます。現時点ではAnsible playbookおよび`provision` CLIは未実装です。移行・検証については[第一段階の設計メモ](docs/m1-layout.md)を参照してください。
+
 ## 初期構築
 
 対象PCでNixOS Minimal ISOを起動し、有線LAN（DHCP）でネットワークに接続します。インストールには別の管理PCやNixツールを用意する必要はありません。
@@ -65,13 +74,13 @@ systemctl status ubuntu-iso-fetch.service
 journalctl -u ubuntu-iso-fetch.service
 ```
 
-ISOの保存先は `/var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso` です。URLとSHA256は `ubuntu-iso.nix` で固定し、[Ubuntu公式SHA256SUMS](https://releases.ubuntu.com/26.04.1/SHA256SUMS) と照合しています。
+ISOの保存先は `/var/lib/ubuntu-images/ubuntu-26.04.1-live-server-amd64.iso` です。URLとSHA256は `provisioner/ubuntu/iso.nix` で固定し、[Ubuntu公式SHA256SUMS](https://releases.ubuntu.com/26.04.1/SHA256SUMS) と照合しています。
 
 サービスを再実行すると、保存済みISOのSHA256を確認します。一致すればダウンロードを省略し、不一致または未取得の場合は再ダウンロードします。取得ファイルは検証成功後に配置します。ISOはNix StoreとGitの管理対象外です。
 
 ## Ubuntu Server ISOのHTTP配信
 
-`ubuntu-http.nix` でnginxを有効化し、取得済みISOだけをHTTP公開します。ISO配信とNoCloudシード配信は別のNixモジュールに分離しています。ポート80はLAN内に限らず、`c0` に到達できるネットワークからアクセス可能になるため、ルーターやネットワーク境界の設定に注意してください。
+`provisioner/ubuntu/http.nix` でnginxを有効化し、取得済みISOだけをHTTP公開します。ISO配信とNoCloudシード配信は別のNixモジュールに分離しています。ポート80はLAN内に限らず、`c0` に到達できるネットワークからアクセス可能になるため、ルーターやネットワーク境界の設定に注意してください。
 
 ISO取得済みの状態で設定を適用すると、既存ファイルの読み取り権限もsystemd-tmpfilesで調整します。ISO取得サービスによる新規取得・再検証時にも読み取り権限を設定します。
 
@@ -183,12 +192,12 @@ workflowは変更がある場合に限って、選択したブランチへ `flak
 ## 構成ファイル
 
 - `flake.nix` / `flake.lock`: NixOS構成のエントリーポイントと依存固定
-- `configuration.nix`: SSH、mDNS、WoL、ブートローダーなどのOS設定
-- `disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
+- `controller/configuration.nix`: SSH、mDNS、WoL、ブートローダーなどのOS設定
+- `controller/disk-config.nix`: diskoのディスク宣言とファイルシステムのマウント設定
 - `install.sh`: 初期構築の実行制御と実機固有情報の生成
-- `ubuntu-iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
-- `ubuntu-http.nix`: nginxによるUbuntu Server ISOのHTTP配信
-- `ubuntu-pxe.nix`: Legacy BIOS向けPixiecore起動・ISOからの起動ファイル準備
-- `ubuntu-autoinstall.nix`: ホスト名別NoCloudシード生成・HTTP配信（SSH・ユーザー・時刻同期・mDNSの初期設定）
+- `provisioner/ubuntu/iso.nix`: Ubuntu Server ISOの手動取得・SHA256検証
+- `provisioner/ubuntu/http.nix`: nginxによるUbuntu Server ISOのHTTP配信
+- `provisioner/ubuntu/pxe.nix`: Legacy BIOS向けPixiecore起動・ISOからの起動ファイル準備
+- `provisioner/ubuntu/autoinstall.nix`: ホスト名別NoCloudシード生成・HTTP配信（SSH・ユーザー・時刻同期・mDNSの初期設定）
 - `hardware-configuration.nix` / `network-local.nix` / `boot-local.nix`: インストール時に生成し、実機専用のローカルGitコミットでのみ追跡する設定
 - `docs/local-host-config.md`: ローカルブランチ運用上の制約と今後の検討課題

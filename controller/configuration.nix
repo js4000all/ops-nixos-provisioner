@@ -1,13 +1,13 @@
 { config, lib, pkgs, ... }:
 {
   imports = [
-    ./hardware-configuration.nix
-    ./network-local.nix
-    ./boot-local.nix
-    ./ubuntu-iso.nix
-    ./ubuntu-http.nix
-    ./ubuntu-autoinstall.nix
-    ./ubuntu-pxe.nix
+    ../hardware-configuration.nix
+    ../network-local.nix
+    ../boot-local.nix
+    ../provisioner/ubuntu/iso.nix
+    ../provisioner/ubuntu/http.nix
+    ../provisioner/ubuntu/autoinstall.nix
+    ../provisioner/ubuntu/pxe.nix
   ];
 
   options.myHost = {
@@ -85,7 +85,7 @@
     # Allow dynamically linked binaries such as VS Code Server to run on NixOS.
     programs.nix-ld.enable = true;
 
-    environment.systemPackages = with pkgs; [ git curl vim ];
+    environment.systemPackages = with pkgs; [ git curl vim python3 ansible ];
     networking.firewall.allowedTCPPorts = [ 22 ];
 
     system.stateVersion = "26.05";

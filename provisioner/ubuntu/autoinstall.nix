@@ -1,7 +1,7 @@
 { lib, pkgs, ... }:
 let
   keys = lib.filter (line: line != "" && !(lib.hasPrefix "#" line))
-    (lib.splitString "\n" (builtins.readFile ./ssh/authorized_keys));
+    (lib.splitString "\n" (builtins.readFile ../../ssh/authorized_keys));
   yaml = pkgs.formats.yaml { };
   template = yaml.generate "ubuntu-autoinstall-template.yaml" {
     autoinstall = {
