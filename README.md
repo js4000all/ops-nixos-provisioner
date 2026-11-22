@@ -10,10 +10,10 @@ NixOSベースの管理PC `c0` の初期構築・運用設定です。OS構成�
 
 - `controller/`: 管理PC `c0` 自身の静的なNixOS/disko構成
 - `provisioner/ubuntu/`: UbuntuワーカーのISO、HTTP、PXE、Autoinstall配信・準備機能
-- `worker/`: ワーカーの継続構成管理のための領域（次段階でAnsible rolesを追加）
+- `worker/`: ワーカーの継続構成管理。`worker/ubuntu/ansible/` にUbuntuワーカー向け共通roleとPlaybookを配置
 - `install.sh`: 公開済みBootstrap URLを維持する管理PCインストーラー。実機固有の`hardware-configuration.nix`、`network-local.nix`、`boot-local.nix`は引き続きリポジトリ直下に生成される
 
-`c0`にはNixOS構成を通じてPython 3とAnsibleが導入されます。現時点ではAnsible playbookおよび`provision` CLIは未実装です。移行・検証については[第一段階の設計メモ](docs/m1-layout.md)を参照してください。
+`c0`にはNixOS構成を通じてPython 3とAnsibleが導入されます。Ubuntuワーカーの継続設定には[Ansible Playbook](worker/ubuntu/ansible/README.md)を利用できます。`provision` CLIは未実装です。移行・検証については[第一段階の設計メモ](docs/m1-layout.md)を参照してください。
 
 ## 初期構築
 
