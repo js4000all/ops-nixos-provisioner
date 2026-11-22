@@ -1,52 +1,59 @@
 # Ubuntu worker configuration with Ansible
 
-This playbook configures an already-installed Ubuntu worker. **It never installs or repartitions the OS.**
-PXE, Autoinstall, and cloud-init remain unchanged in this stage.
+The controller `c0` uses a dedicated worker-management key pair owned by `user1`:
+`/home/user1/.ssh/id_ed25519_provisioner` (private) and `id_ed25519_provisioner.pub` (public).
+The `provisioner-ssh-keygen.service` systemd unit creates it once at boot or on explicit start.
+It never overwrites an existing private key. A missing public key is recovered from the private key; if only the public key remains, the unit fails to avoid silently rotating the identity.
 
-## Prerequisites
-
-- Controller `c0` has Ansible installed through its NixOS configuration.
-- Worker was installed with the current Ubuntu Autoinstall (SSH public-key login for `user1`, passwordless sudo, Avahi/mDNS, and Python 3 available).
-- The invoking account on `c0` has a private SSH key matching an entry in `ssh/authorized_keys`. Installing Ansible on `c0` does not itself provide that private key.
-- The SSH host key has been verified/trusted. Host-key checking remains enabled.
-- Controller resolves `k2.local` using mDNS.
-
-From the repository root (`/etc/nixos` on c0):
+After applying the NixOS configuration, run on c0:
 
 ```sh
-cd worker/ubuntu/ansible
+sudo systemctl start provisioner-ssh-keygen.service
+systemctl status provisioner-ssh-keygen.service
+ls -l /home/user1/.ssh/id_ed25519_provisioner*
+```
+
+Autoinstall embeds c0's public key at `sudo ubuntu-autoinstall-select HOSTNAME` time. The Git-managed `ssh/authorized_keys` file is **not** used for worker access anymore. Controller login authentication is unchanged.
+
+## Apply to a newly provisioned worker
+
+As `user1` on c0 (Ansible reads the private key specified in `ansible.cfg`):
+
+```sh
+cd /etc/nixos/worker/ubuntu/ansible
 ansible-playbook -i 'k2.local,' playbook.yml --syntax-check
-ansible -i 'k2.local,' all -m ansible.builtin.ping -u user1
+ansible -i 'k2.local,' all -m ansible.builtin.ping
 ansible-playbook -i 'k2.local,' playbook.yml --check --diff
 ansible-playbook -i 'k2.local,' playbook.yml --diff
 ansible-playbook -i 'k2.local,' playbook.yml --diff
 ```
 
-The trailing comma makes `k2.local,` a one-host Ansible inventory; no host-specific inventory file is committed. The final run should report `changed=0` once the target is converged. Check mode is advisory, not a replacement for a real apply.
+The trailing comma means a single-host Inventory. SSH host-key checking remains enabled; verify and trust the worker host key before connecting. Aim for `changed=0` after convergence; check mode cannot guarantee this.
 
-To use a different SSH identity, use OpenSSH agent/config or Ansible's `--private-key` option. Never store private keys in this repository.
+## Existing Ubuntu workers: migration required
 
-## Managed scope
-
-- Packages: avahi-daemon, libnss-mdns, chrony, ethtool, openssh-server, python3.
-- `user1`: membership in `adm` and `sudo`, password lock, keys from `ssh/authorized_keys`, passwordless sudo.
-- SSH key-only policy in `/etc/ssh/sshd_config.d/00-provisioner.conf`.
-- Existing `enable-wol` script and systemd service; enabled and running.
-- `ssh`, `avahi-daemon`, and `chrony` enabled and running.
-
-The common role is intentionally aligned with the current cloud-init configuration; it does not remove those bootstrap definitions yet. The role does not manage hostnames, disk layout, DHCP or global network policy. It uses `ansible.posix.authorized_key`, so the matching collection must be available in the controller's Ansible installation.
-
-**Access note:** Authorized keys are managed exclusively from the shared public-key file. Review the desired key set before applying; keys added manually on a worker are removed. Check the existing controller SSH access before making changes.
-
-## Verification on worker
+Previously provisioned Ubuntu workers received public keys from `ssh/authorized_keys` and do not yet authorize the new controller key. **Do not apply the exclusive authorized-key task before verifying access with the new identity.** With the *previously working private key* still available, add the new public key non-exclusively and verify its login:
 
 ```sh
-ssh user1@k2.local 'sudo -n true && systemctl is-active ssh avahi-daemon chrony enable-wol'
-ssh user1@k2.local 'hostnamectl; timedatectl'
+ssh -i /path/to/old-private-key user1@k2.local \
+  'umask 077; mkdir -p ~/.ssh; cat >> ~/.ssh/authorized_keys' \
+  < /home/user1/.ssh/id_ed25519_provisioner.pub
+
+ssh -i /home/user1/.ssh/id_ed25519_provisioner -o IdentitiesOnly=yes \
+  user1@k2.local 'sudo -n true'
 ```
 
-WoL capability depends on the physical NIC; compare `sudo ethtool <interface>` output on the target if needed.
+The append may produce duplicate entries if repeated, so check first. Once new-key login succeeds, run the Playbook; its `exclusive: true` setting removes other keys from the worker's `user1` account.
 
-## Stage boundaries
+The role manages the admin user, password lock, key-only SSH, passwordless sudo, Avahi, chrony, Python, and existing WoL script/systemd service. It does not manage disk or DHCP settings. The `ansible.posix` collection is needed for `authorized_key`.
 
-Stage 2 validates the common Ansible role on an existing Ubuntu worker. Automatic post-install readiness detection and the `provision` CLI are separate later stages.
+**Backups and rotation:** The controller private key is persistent host data, not part of the Flake or Git. Back it up securely before reinstalling c0. Rotating it requires adding the replacement key to existing workers before the previous key is retired.
+
+## Verify
+
+```sh
+ssh -i ~/.ssh/id_ed25519_provisioner user1@k2.local 'sudo -n true && systemctl is-active ssh avahi-daemon chrony enable-wol'
+ssh -i ~/.ssh/id_ed25519_provisioner user1@k2.local 'hostnamectl; timedatectl'
+```
+
+Automatic installation completion detection and the `provision` CLI are out of scope.

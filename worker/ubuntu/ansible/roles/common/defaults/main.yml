@@ -1,3 +1,3 @@
 ---
 worker_admin_user: user1
-worker_admin_keys_file: "{{ playbook_dir }}/../../../ssh/authorized_keys"
+worker_admin_keys_file: "/home/user1/.ssh/id_ed25519_provisioner.pub"
