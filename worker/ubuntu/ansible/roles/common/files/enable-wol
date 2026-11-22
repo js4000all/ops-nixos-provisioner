@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+found=0
+for path in /sys/class/net/*; do
+  nic="${path##*/}"
+  [ "$nic" != lo ] || continue
+  [ -e "$path/device" ] || continue
+  [ ! -d "$path/wireless" ] && [ ! -e "$path/phy80211" ] || continue
+  [ "$(cat "$path/type")" = 1 ] || continue
+  found=1
+  /usr/sbin/ethtool -s "$nic" wol g
+done
+[ "$found" -eq 1 ] || { echo "No physical wired NIC found" >&2; exit 1; }

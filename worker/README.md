@@ -1,3 +1,6 @@
 # Worker configuration
 
-This directory will hold Ubuntu Ansible playbooks/roles and future NixOS worker modules. The first PR establishes only the directory boundary; no worker configuration management is introduced yet.
+- [Ubuntu Ansible playbook and common role](ubuntu/ansible/README.md) manage already-installed Ubuntu workers.
+- Future NixOS worker modules can be added here without changing the current Ubuntu implementation.
+
+The Ubuntu Autoinstall bootstrap definition remains in `provisioner/ubuntu/autoinstall.nix`.

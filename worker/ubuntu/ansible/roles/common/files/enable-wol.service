@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable Wake-on-LAN on wired NICs
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/enable-wol
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
