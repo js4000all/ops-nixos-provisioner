@@ -8,6 +8,7 @@
     ../provisioner/ubuntu/http.nix
     ../provisioner/ubuntu/autoinstall.nix
     ../provisioner/ubuntu/pxe.nix
+    ./worker-ssh-key.nix
   ];
 
   options.myHost = {

@@ -1,0 +1,11 @@
+---
+- name: Restart ssh
+  ansible.builtin.systemd_service:
+    name: ssh.service
+    state: restarted
+
+- name: Restart enable-wol
+  ansible.builtin.systemd_service:
+    name: enable-wol.service
+    daemon_reload: true
+    state: restarted

@@ -1,7 +1,5 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 let
-  keys = lib.filter (line: line != "" && !(lib.hasPrefix "#" line))
-    (lib.splitString "\n" (builtins.readFile ../../ssh/authorized_keys));
   yaml = pkgs.formats.yaml { };
   template = yaml.generate "ubuntu-autoinstall-template.yaml" {
     autoinstall = {
@@ -27,7 +25,7 @@ let
           shell = "/bin/bash";
           lock_passwd = true;
           sudo = "ALL=(ALL) NOPASSWD:ALL";
-          ssh_authorized_keys = keys;
+          ssh_authorized_keys = [ "__CONTROLLER_SSH_KEY__" ];
         }];
         write_files = [
           {
@@ -108,7 +106,27 @@ let
     tmp="$(${pkgs.coreutils}/bin/mktemp "$dir/.user-data.XXXXXX")"
     trap '${pkgs.coreutils}/bin/rm -f "$tmp"' EXIT
     printf '#cloud-config\n' > "$tmp"
-    ${pkgs.gnused}/bin/sed "s/__HOSTNAME__/$host/g" ${template} >> "$tmp"
+    pubkey=/home/user1/.ssh/id_ed25519_provisioner.pub
+    privatekey=/home/user1/.ssh/id_ed25519_provisioner
+    if [ ! -s "$pubkey" ] || [ ! -f "$privatekey" ]; then
+      echo "Controller SSH key missing; start provisioner-ssh-keygen.service first" >&2
+      exit 1
+    fi
+    ${pkgs.openssh}/bin/ssh-keygen -lf "$pubkey" >/dev/null
+    ${pkgs.python3}/bin/python3 - "${template}" "$host" "$pubkey" >> "$tmp" <<'PY'
+import pathlib
+import re
+import sys
+
+template_path, hostname, public_key_path = sys.argv[1:]
+key = pathlib.Path(public_key_path).read_text(encoding="ascii").strip()
+if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/]+={0,2}(?: [A-Za-z0-9._-]+)?", key):
+    raise SystemExit("Unsupported or malformed controller SSH public key")
+template_text = pathlib.Path(template_path).read_text(encoding="utf-8")
+assert template_text.count("__HOSTNAME__") == 1
+assert template_text.count("__CONTROLLER_SSH_KEY__") == 1
+sys.stdout.write(template_text.replace("__HOSTNAME__", hostname).replace("__CONTROLLER_SSH_KEY__", key))
+PY
     ${pkgs.coreutils}/bin/chmod 0644 "$tmp"
     ${pkgs.coreutils}/bin/mv -f "$tmp" "$dir/user-data"
     trap - EXIT
@@ -119,10 +137,6 @@ let
   '';
 in
 {
-  assertions = [{
-    assertion = keys != [ ];
-    message = "ssh/authorized_keys must contain at least one public SSH key";
-  }];
   environment.systemPackages = [ selectHost ];
   systemd.tmpfiles.rules = [ "d /var/lib/ubuntu-autoinstall 0755 root root -" ];
   services.nginx.virtualHosts."_".locations = {

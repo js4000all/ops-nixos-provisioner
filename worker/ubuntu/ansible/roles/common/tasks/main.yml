@@ -1,0 +1,82 @@
+---
+- name: Install base worker packages
+  ansible.builtin.apt:
+    name:
+      - avahi-daemon
+      - libnss-mdns
+      - chrony
+      - ethtool
+      - openssh-server
+      - python3
+    state: present
+    update_cache: false
+
+- name: Ensure the administrator account exists and remains password locked
+  ansible.builtin.user:
+    name: "{{ worker_admin_user }}"
+    shell: /bin/bash
+    groups:
+      - adm
+      - sudo
+    append: true
+    password_lock: true
+    state: present
+
+- name: Manage the administrator SSH authorized keys
+  ansible.posix.authorized_key:
+    user: "{{ worker_admin_user }}"
+    key: "{{ lookup('ansible.builtin.file', worker_admin_keys_file) }}"
+    exclusive: true
+    state: present
+
+- name: Allow passwordless sudo for the administrator
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-provisioner-{{ worker_admin_user }}"
+    owner: root
+    group: root
+    mode: "0440"
+    content: "{{ worker_admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Preserve SSH key-only authentication policy
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-provisioner.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+  notify: Restart ssh
+
+- name: Install the existing Wake-on-LAN helper
+  ansible.builtin.copy:
+    src: enable-wol
+    dest: /usr/local/sbin/enable-wol
+    owner: root
+    group: root
+    mode: "0755"
+  notify: Restart enable-wol
+
+- name: Install the existing Wake-on-LAN systemd service
+  ansible.builtin.copy:
+    src: enable-wol.service
+    dest: /etc/systemd/system/enable-wol.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart enable-wol
+
+- name: Enable and start worker services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - ssh.service
+    - avahi-daemon.service
+    - chrony.service
+    - enable-wol.service
